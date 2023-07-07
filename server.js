@@ -17,7 +17,7 @@ app.get("/", async (req, res) => {
 
 app.get("/hi", async (req, res) => {
   try {
-    res.json({ success: "Hello!" });
+    res.json({ success: "Hi!" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Server error" });
