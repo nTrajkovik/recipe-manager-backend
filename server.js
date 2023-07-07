@@ -15,6 +15,15 @@ app.get("/", async (req, res) => {
   }
 });
 
+app.get("/hi", async (req, res) => {
+  try {
+    res.json({ success: "Hello!" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
 })
