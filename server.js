@@ -30,17 +30,27 @@ app.get("/", async (req, res) => {
   }
 });
 
-
 app.get("/api/recipes", async (req, res) => {
   try {
-    const { page } = req.query;
-    const pageSize = 10;
-    const recipes = await db.collection('recipes')
-    .find()
-    .skip((page - 1) * pageSize)
-    .limit(pageSize)
-    .toArray();
-    res.json(recipes);
+    let { page, title, pageSize, tags } = req.query;
+    tags = JSON.parse(tags || '[]');
+    pageSize = parseInt(pageSize);
+    let query = {};
+    if (title) {
+      query = { ...query, title: { $regex: title, $options: "i" } };
+    }
+    if (tags.length) {
+      query = {...query, tags: { $all: tags }};
+    }
+    const searchQuery = db.collection("recipes").find(query);
+    const count = await searchQuery.count();
+    const pages = Math.ceil(count / pageSize); // 15 / 5 = 3 pages
+    // 14 / 5 = 2.7 ~ 3 pages
+    const recipes = await searchQuery
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .toArray();
+    res.json({ recipes, pages });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Server error" });
@@ -50,8 +60,8 @@ app.get("/api/recipes", async (req, res) => {
 app.post("/api/recipes", async (req, res) => {
   try {
     const newRecipe = req.body;
-    await db.collection('recipes').insertOne(newRecipe);
-    res.status(201).json({ message: 'Recipe added successfully' });
+    await db.collection("recipes").insertOne(newRecipe);
+    res.status(201).json({ message: "Recipe added successfully" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Server error" });
