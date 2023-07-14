@@ -1,7 +1,8 @@
 
 const userService = require('./service/user.service');
+const jwt = require('jsonwebtoken');
 
-const getUserFromToken = async (token) => {
+const getUserById = async (token) => {
     try {
         const user = await userService.getById(token);
         return user;
@@ -13,8 +14,16 @@ const getUserFromToken = async (token) => {
 
 const authenticate = async (req, res, next) => {
     const token = req.headers.authorization;
-    
-    const user = await getUserFromToken(token);
+    let decodedToken;
+    try {
+        decodedToken = jwt.verify(token, process.env.SECRET_KEY);
+    } catch (error) {
+        console.error(error);
+        return res.status(401).json({ error: "TokenExpiredError" });
+    }
+    console.log({decodedToken});
+    const user = await getUserById(decodedToken.userId);
+    console.log({user});
     if (user) {
         req.user = user;
         next();

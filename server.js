@@ -1,7 +1,9 @@
 const express = require("express");
 const cors = require("cors");
-const userService = require('./service/user.service');
-const { authenticate } = require('./authenticate.middleware');
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const userService = require("./service/user.service");
+const { authenticate } = require("./authenticate.middleware");
 require("dotenv").config();
 const { MongoClient } = require("mongodb");
 const { isAdmin } = require("./admin.middleware");
@@ -13,7 +15,7 @@ const connectDb = async () => {
   try {
     const client = await MongoClient.connect(connectionString);
     db = client.db(dbName);
-    await userService.registerModel(db.collection('users'));
+    await userService.registerModel(db.collection("users"));
     console.log("Connection to Mongo Success");
   } catch (err) {
     console.error(err);
@@ -37,10 +39,16 @@ app.get("/", async (req, res) => {
 app.post("/api/register", async (req, res) => {
   try {
     const { username, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db
       .collection("users")
-      .insertOne({ username, password });
-    res.json(result);
+      .insertOne({ username, password: hashedPassword });
+    const token = jwt.sign(
+      { userId: result.insertedId },
+      process.env.SECRET_KEY,
+      { expiresIn: "7days" }
+    );
+    res.json({ token });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(500).json({ error: "Username taken" });
@@ -53,10 +61,14 @@ app.post("/api/register", async (req, res) => {
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
-    const user = await db.collection('users').findOne({username});
+    const user = await db.collection("users").findOne({ username });
     if (!user) return res.status(404).json({ error: "Cannot login!" });
-    if (password !== user.password) return res.status(404).json({ error: "Cannot login!" });
-    res.json(user._id);
+    if (!(await bcrypt.compare(password, user.password)))
+      return res.status(404).json({ error: "Cannot login!" });
+    const token = jwt.sign({ userId: user._id }, process.env.SECRET_KEY, {
+      expiresIn: "7days",
+    });
+    res.json({ token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Server error" });
@@ -64,6 +76,10 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.use(authenticate);
+
+app.get("/api/user-data", async (req, res) => {
+  return res.json(req.user);
+});
 
 app.get("/api/recipes", async (req, res) => {
   try {
